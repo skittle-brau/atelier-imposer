@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Gang-Up Imposer</title>
+<title>Atelier Imposer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -132,7 +132,7 @@ button,input,select{font:inherit;color:inherit}
       </g>
       <rect x="9" y="9" width="12" height="12" fill="var(--accent)"/>
     </svg>
-    <div><h1>Gang-Up Imposer</h1><small id="srcname">step &amp; repeat · n-up · cut &amp; stack · booklet</small></div>
+    <div><h1>Atelier Imposer</h1><small id="srcname">step &amp; repeat · n-up · cut &amp; stack · booklet</small></div>
   </div>
   <input type="file" id="file" accept="application/pdf,.pdf" hidden>
   <button class="btn" id="open">Open PDF…</button>
@@ -317,7 +317,7 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } },
 };
 
-let st = Object.assign({}, DEF, store.get("gangup.last", {}));
+let st = Object.assign({}, DEF, store.get("atelier.last", {}));
 const S = { src: null, out: null, plan: null, face: 0 };
 const $ = (s) => document.querySelector(s);
 
@@ -507,7 +507,7 @@ async function buildPdf(plan) {
   const { L } = plan;
   const out = await PDFDocument.create();
   out.setTitle(`${S.src.name} (imposed)`);
-  out.setCreator("Gang-Up Imposer");
+  out.setCreator("Atelier Imposer");
   const font = await out.embedFont(StandardFonts.Helvetica);
   const cache = new Map();
   const markCol = st.markColor === "k" ? cmyk(0, 0, 0, 1) : cmyk(1, 1, 1, 1);
@@ -671,7 +671,7 @@ function onChange(k) {
   if (k === "sheetW" || k === "sheetH") { st.sheet = "custom"; $("#f-sheet").value = "custom"; }
   if (k === "grid" && st.grid === "manual" && S.plan) { st.cols = S.plan.L.cols; st.rows = S.plan.L.rows; }
   if (k !== "sheetW" && k !== "sheetH") writeControls();
-  store.set("gangup.last", st);
+  store.set("atelier.last", st);
   if (k === "overlay") { drawOverlay(); return; }
   update();
 }
@@ -845,22 +845,22 @@ async function download() {
 
 // ---------- presets ----------
 function renderPresets() {
-  const list = store.get("gangup.presets", []);
+  const list = store.get("atelier.presets", []);
   const ul = $("#presets"); ul.innerHTML = "";
   list.forEach((p, i) => {
     const li = document.createElement("li");
     const b = document.createElement("button"); b.className = "load"; b.textContent = p.name; b.title = "Load " + p.name;
-    b.onclick = () => { st = Object.assign({}, DEF, p.st, { overlay: st.overlay }); writeControls(); store.set("gangup.last", st); update(); toast("Loaded " + p.name); };
+    b.onclick = () => { st = Object.assign({}, DEF, p.st, { overlay: st.overlay }); writeControls(); store.set("atelier.last", st); update(); toast("Loaded " + p.name); };
     const d = document.createElement("button"); d.className = "del"; d.textContent = "✕"; d.setAttribute("aria-label", "Delete " + p.name);
-    d.onclick = () => { list.splice(i, 1); store.set("gangup.presets", list); renderPresets(); };
+    d.onclick = () => { list.splice(i, 1); store.set("atelier.presets", list); renderPresets(); };
     li.append(b, d); ul.append(li);
   });
 }
 $("#savePreset").onclick = () => {
   const name = $("#presetName").value.trim() || `${modeName()} ${S.plan ? S.plan.L.cols + "×" + S.plan.L.rows : ""}`;
-  const list = store.get("gangup.presets", []).filter((p) => p.name !== name);
+  const list = store.get("atelier.presets", []).filter((p) => p.name !== name);
   list.push({ name, st: { ...st } });
-  if (store.set("gangup.presets", list)) { $("#presetName").value = ""; renderPresets(); toast("Saved setup " + name); }
+  if (store.set("atelier.presets", list)) { $("#presetName").value = ""; renderPresets(); toast("Saved setup " + name); }
   else toast("This browser is blocking storage, so setups can't be saved here.");
 };
 
