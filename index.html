@@ -269,6 +269,8 @@ button,input,select{font:inherit;color:inherit}
         <button class="btn" id="zoomOut" aria-label="Zoom out" title="Zoom out (−)">−</button>
         <select class="btn zl" id="zoomSel" aria-label="Zoom level">
           <option value="fit">Fit</option>
+          <option value="0.5">50%</option>
+          <option value="0.75">75%</option>
           <option value="1">100%</option>
           <option value="1.25">125%</option>
           <option value="1.5">150%</option>
@@ -748,8 +750,7 @@ async function renderFace() {
   const n = Math.min(S.face + 1, pdfDoc.numPages);
   const page = await pdfDoc.getPage(n);
   const view = $("#view");
-  const aw = Math.max(100, view.clientWidth - 32), ah = Math.max(100, view.clientHeight - 24);
-  const scale = S.zoom === "fit" ? Math.min(aw / L.sw, ah / L.sh) : S.zoom * 96 / 72;
+  const scale = (S.zoom === "fit" ? fitZoom() : S.zoom) * 96 / 72;
   const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
   // keep the backing canvas under ~36 megapixels at high zoom
   const px = scale * dpr, rs = px * Math.min(1, Math.sqrt(36e6 / (L.sw * px * L.sh * px)));
@@ -774,9 +775,23 @@ async function renderFace() {
     view.scrollTop = wrap.offsetTop + a.fy * cssH - a.ay;
     S.anchor = null;
   }
+  updateZoomUI();
   drawOverlay();
 }
-const ZOOMS = ["fit", 1, 1.25, 1.5, 1.75, 2];
+const ZOOMS = ["fit", 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+// Fit as a zoom level, where 1 is actual size (1 pt = 1/72 in shown at 96 CSS px per inch)
+function fitZoom() {
+  const view = $("#view"), L = S.plan ? S.plan.L : { sw: 907, sh: 1276 };
+  const aw = Math.max(100, view.clientWidth - 32), ah = Math.max(100, view.clientHeight - 24);
+  return Math.min(aw / L.sw, ah / L.sh) * 72 / 96;
+}
+// −/+ step through all levels by size, so Fit sits wherever it falls among them
+function zoomTarget(dir) {
+  const size = (z) => (z === "fit" ? fitZoom() : z);
+  const cur = size(S.zoom);
+  const steps = ZOOMS.filter((z) => z !== S.zoom).sort((a, b) => size(a) - size(b));
+  return dir > 0 ? steps.find((z) => size(z) > cur + 0.001) : [...steps].reverse().find((z) => size(z) < cur - 0.001);
+}
 function setZoom(z, at) {
   if (!ZOOMS.includes(z) || z === S.zoom) return;
   const view = $("#view"), vr = view.getBoundingClientRect(), wr = $("#sheetwrap").getBoundingClientRect();
@@ -790,13 +805,13 @@ function setZoom(z, at) {
   renderFace();
 }
 function zoomStep(dir, at) {
-  const next = ZOOMS[ZOOMS.indexOf(S.zoom) + dir];
+  const next = zoomTarget(dir);
   if (next !== undefined) setZoom(next, at);
 }
 function updateZoomUI() {
   $("#zoomSel").value = String(S.zoom);
-  $("#zoomOut").disabled = S.zoom === ZOOMS[0];
-  $("#zoomIn").disabled = S.zoom === ZOOMS[ZOOMS.length - 1];
+  $("#zoomOut").disabled = zoomTarget(-1) === undefined;
+  $("#zoomIn").disabled = zoomTarget(1) === undefined;
 }
 function drawOverlay() {
   const ov = $("#ov"), ctx = ov.getContext("2d");
