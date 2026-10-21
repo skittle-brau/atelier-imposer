@@ -11,17 +11,17 @@
 /* Layout: a prepress light table. A narrow control rail on the left, the press sheet on a cool table surface on the right, guillotine cut chart beneath. */
 :root{
   --bg:#e8ecef; --table:#d6dde2; --panel:#f8fafb; --ink:#162027; --muted:#566570; --line:#ccd5db;
-  --accent:#b8155a; --accent-ink:#ffffff; --accent-soft:#f7e1ea; --cut:#0089bf; --warn:#8a4b00; --warn-bg:#fff1d9;
+  --accent:#1d5fa8; --accent-ink:#ffffff; --accent-soft:#dde8f5; --warn:#8a4b00; --warn-bg:#fff1d9;
   --f-display:"Barlow Semi Condensed","Arial Narrow",system-ui,sans-serif;
   --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#10161a; --table:#0a0e11; --panel:#172027; --ink:#e2e8ec; --muted:#92a1ab; --line:#29353d;
-  --accent:#f0679c; --accent-ink:#2a0514; --accent-soft:#3a1626; --cut:#4fc3f7; --warn:#ffbf66; --warn-bg:#33240f; color-scheme:dark}}
+  --accent:#6ea8e6; --accent-ink:#071a30; --accent-soft:#1a2f47; --warn:#ffbf66; --warn-bg:#33240f; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#10161a; --table:#0a0e11; --panel:#172027; --ink:#e2e8ec; --muted:#92a1ab; --line:#29353d;
-  --accent:#f0679c; --accent-ink:#2a0514; --accent-soft:#3a1626; --cut:#4fc3f7; --warn:#ffbf66; --warn-bg:#33240f; color-scheme:dark}
+  --accent:#6ea8e6; --accent-ink:#071a30; --accent-soft:#1a2f47; --warn:#ffbf66; --warn-bg:#33240f; color-scheme:dark}
 
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.45;display:flex;flex-direction:column}
@@ -84,7 +84,7 @@ button,input,select{font:inherit;color:inherit}
 .spacer{flex:1}
 .zoom{display:flex;align-items:center;gap:4px}
 .zoom .btn{padding:5px 10px}
-.zoom .zl{min-width:7ch;justify-content:center;font-family:var(--f-mono);font-size:12.5px}
+.zoom .zl{padding:5px 8px;font-family:var(--f-mono);font-size:12.5px}
 .busy{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
 
 .view{flex:1;min-height:320px;position:relative;display:flex;overflow:auto;padding:8px 16px 16px;overscroll-behavior:contain}
@@ -267,7 +267,14 @@ button,input,select{font:inherit;color:inherit}
       <span class="spacer"></span>
       <div class="zoom" role="group" aria-label="Preview zoom">
         <button class="btn" id="zoomOut" aria-label="Zoom out" title="Zoom out (−)">−</button>
-        <button class="btn zl" id="zoomFit" title="Fit the sheet to the window (0)">Fit</button>
+        <select class="btn zl" id="zoomSel" aria-label="Zoom level">
+          <option value="fit">Fit</option>
+          <option value="1">100%</option>
+          <option value="1.25">125%</option>
+          <option value="1.5">150%</option>
+          <option value="1.75">175%</option>
+          <option value="2">200%</option>
+        </select>
         <button class="btn" id="zoomIn" aria-label="Zoom in" title="Zoom in (+)">+</button>
       </div>
       <span class="busy" id="busy"></span>
@@ -328,7 +335,7 @@ const store = {
 };
 
 let st = Object.assign({}, DEF, store.get("atelier.settings", {}));
-const S = { src: null, out: null, plan: null, face: 0, zoom: 1, anchor: null };
+const S = { src: null, out: null, plan: null, face: 0, zoom: "fit", anchor: null };
 const $ = (s) => document.querySelector(s);
 
 // ---------- geometry helpers ----------
@@ -615,7 +622,7 @@ async function loadSource(bytes, name) {
   if (!pages.length) { toast("That PDF has no pages."); return; }
   S.src = { name: name.replace(/\.pdf$/i, ""), doc, pages };
   S.face = 0;
-  S.zoom = 1; S.anchor = null; updateZoomUI();
+  S.zoom = "fit"; S.anchor = null; updateZoomUI();
   renderSource();
   update();
 }
@@ -742,7 +749,7 @@ async function renderFace() {
   const page = await pdfDoc.getPage(n);
   const view = $("#view");
   const aw = Math.max(100, view.clientWidth - 32), ah = Math.max(100, view.clientHeight - 24);
-  const scale = Math.min(aw / L.sw, ah / L.sh) * S.zoom;
+  const scale = S.zoom === "fit" ? Math.min(aw / L.sw, ah / L.sh) : S.zoom * 96 / 72;
   const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
   // keep the backing canvas under ~36 megapixels at high zoom
   const px = scale * dpr, rs = px * Math.min(1, Math.sqrt(36e6 / (L.sw * px * L.sh * px)));
@@ -760,7 +767,7 @@ async function renderFace() {
   ov.width = off.width; ov.height = off.height;
   ov.style.width = cssW + "px"; ov.style.height = cssH + "px";
   ov.dataset.scale = rs;
-  view.classList.toggle("zoomed", S.zoom > 1);
+  view.classList.toggle("zoomed", view.scrollWidth > view.clientWidth || view.scrollHeight > view.clientHeight);
   if (S.anchor) {
     const a = S.anchor, wrap = $("#sheetwrap");
     view.scrollLeft = wrap.offsetLeft + a.fx * cssW - a.ax;
@@ -769,10 +776,9 @@ async function renderFace() {
   }
   drawOverlay();
 }
-const ZOOMS = [1, 1.5, 2, 3, 4, 6, 8];
+const ZOOMS = ["fit", 1, 1.25, 1.5, 1.75, 2];
 function setZoom(z, at) {
-  z = Math.min(8, Math.max(1, z));
-  if (z === S.zoom) return;
+  if (!ZOOMS.includes(z) || z === S.zoom) return;
   const view = $("#view"), vr = view.getBoundingClientRect(), wr = $("#sheetwrap").getBoundingClientRect();
   const cx = at ? at.x : vr.left + view.clientWidth / 2, cy = at ? at.y : vr.top + view.clientHeight / 2;
   S.anchor = {
@@ -784,13 +790,13 @@ function setZoom(z, at) {
   renderFace();
 }
 function zoomStep(dir, at) {
-  const next = dir > 0 ? ZOOMS.find((z) => z > S.zoom + 0.01) : [...ZOOMS].reverse().find((z) => z < S.zoom - 0.01);
-  if (next) setZoom(next, at);
+  const next = ZOOMS[ZOOMS.indexOf(S.zoom) + dir];
+  if (next !== undefined) setZoom(next, at);
 }
 function updateZoomUI() {
-  $("#zoomFit").textContent = S.zoom === 1 ? "Fit" : Math.round(S.zoom * 100) + "%";
-  $("#zoomOut").disabled = S.zoom <= 1;
-  $("#zoomIn").disabled = S.zoom >= 8;
+  $("#zoomSel").value = String(S.zoom);
+  $("#zoomOut").disabled = S.zoom === ZOOMS[0];
+  $("#zoomIn").disabled = S.zoom === ZOOMS[ZOOMS.length - 1];
 }
 function drawOverlay() {
   const ov = $("#ov"), ctx = ov.getContext("2d");
@@ -798,12 +804,11 @@ function drawOverlay() {
   if (!st.overlay || !S.plan || !ov.dataset.scale) return;
   const s = +ov.dataset.scale, L = S.plan.L, face = S.plan.faces[S.face];
   if (!face) return;
-  const cut = getComputedStyle(document.documentElement).getPropertyValue("--cut").trim() || "#0089bf";
   ctx.lineWidth = Math.max(1, s * 0.6);
   for (const it of face.items) {
     const c = it.cell, x = c.x * s, y = (L.sh - c.y - c.h) * s, w = c.w * s, h = c.h * s;
     ctx.setLineDash([4 * s / 2, 3 * s / 2]);
-    ctx.strokeStyle = cut;
+    ctx.strokeStyle = "rgba(0,128,190,.9)";
     ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
     ctx.setLineDash([]);
     const label = it.pi == null ? "blank" : "p" + (it.pi + 1);
@@ -811,13 +816,14 @@ function drawOverlay() {
     ctx.font = `500 ${fs}px "IBM Plex Mono", ui-monospace, monospace`;
     const tw = ctx.measureText(label).width + fs * 0.8, thh = fs * 1.5;
     const cx = x + fs * 0.3 + tw / 2, cy = y + fs * 0.3 + thh / 2;
-    ctx.fillStyle = it.pi == null ? "rgba(90,100,110,.75)" : "rgba(184,21,90,.9)";
+    ctx.fillStyle = it.pi == null ? "rgba(90,100,110,.75)" : "rgba(29,95,168,.92)";
     ctx.beginPath(); ctx.roundRect ? ctx.roundRect(cx - tw / 2, cy - thh / 2, tw, thh, fs * 0.25) : ctx.rect(cx - tw / 2, cy - thh / 2, tw, thh); ctx.fill();
+    ctx.lineWidth = Math.max(1, fs * 0.12); ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.stroke();
     ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText(label, cx, cy + fs * 0.05);
     if (it.pi != null && it.rot) { // small up-arrow showing which way the item's top faces
       ctx.save(); ctx.translate(cx + tw / 2 + fs * 0.7, cy); ctx.rotate(-it.rot * Math.PI / 180);
-      ctx.fillStyle = "rgba(184,21,90,.9)"; ctx.beginPath(); ctx.moveTo(0, -fs * 0.45); ctx.lineTo(fs * 0.4, fs * 0.25); ctx.lineTo(-fs * 0.4, fs * 0.25); ctx.closePath(); ctx.fill(); ctx.restore();
+      ctx.fillStyle = "rgba(29,95,168,.92)"; ctx.beginPath(); ctx.moveTo(0, -fs * 0.45); ctx.lineTo(fs * 0.4, fs * 0.25); ctx.lineTo(-fs * 0.4, fs * 0.25); ctx.closePath(); ctx.fill(); ctx.restore();
     }
   }
 }
@@ -936,11 +942,11 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "ArrowLeft") go(-1); else if (e.key === "ArrowRight") go(1);
   else if (e.key === "+" || e.key === "=") zoomStep(1);
   else if (e.key === "-") zoomStep(-1);
-  else if (e.key === "0") setZoom(1);
+  else if (e.key === "0") setZoom("fit");
 });
 $("#zoomIn").onclick = () => zoomStep(1);
 $("#zoomOut").onclick = () => zoomStep(-1);
-$("#zoomFit").onclick = () => setZoom(1);
+$("#zoomSel").onchange = (e) => setZoom(e.target.value === "fit" ? "fit" : +e.target.value);
 updateZoomUI();
 $("#view").addEventListener("wheel", (e) => {
   if (!e.ctrlKey && !e.metaKey) return;
@@ -949,7 +955,7 @@ $("#view").addEventListener("wheel", (e) => {
 }, { passive: false });
 let pan = null;
 $("#view").addEventListener("pointerdown", (e) => {
-  if (S.zoom <= 1 || e.button !== 0 || e.pointerType === "touch") return;
+  if (!$("#view").classList.contains("zoomed") || e.button !== 0 || e.pointerType === "touch") return;
   const v = $("#view");
   pan = { x: e.clientX, y: e.clientY, l: v.scrollLeft, t: v.scrollTop };
   v.setPointerCapture(e.pointerId); v.classList.add("panning");
